@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14213D">
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
+<title>APEX DETTES</title>
+<style>
+:root{--n:#14213D;--o:#E07B1F;--bg:#F5F6F8;--c:#fff;--t:#1b1f2a;--m:#6b7280;--r:#c62828;--v:#2e7d32}
+*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--t);padding-bottom:88px}
+header{background:var(--n);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 18px}
+header h1{margin:0;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+.tot{font-size:30px;font-weight:700;margin-top:6px}.tot small{display:block;font-size:13px;font-weight:400;opacity:.75}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--o);color:#fff;font-weight:600}
+button.g{background:#e5e7eb;color:var(--t)}button.d{background:#fff;color:var(--r);border:1px solid var(--r)}
+#ins{display:none;padding:6px 10px;font-size:13px}
+main{padding:12px;max-width:640px;margin:auto}
+input,select{font:inherit;width:100%;padding:11px;border:1px solid #d1d5db;border-radius:10px;background:#fff}
+.it{background:var(--c);border-radius:12px;padding:12px 14px;margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.it b{display:block}.it span{color:var(--m);font-size:13px}.s{font-weight:700;white-space:nowrap}
+.dt{color:var(--r)}.ok{color:var(--v)}
+.bar{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}.bar button{flex:1}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));border-radius:30px;padding:14px 20px;box-shadow:0 4px 14px #0004}
+dialog{border:0;border-radius:14px;padding:18px;width:min(92vw,400px)}dialog::backdrop{background:#0006}
+dialog label{display:block;margin:10px 0 4px;font-size:14px;color:var(--m)}
+.row{display:flex;gap:8px;margin-top:16px}.row button{flex:1}
+.vide{text-align:center;color:var(--m);padding:40px 16px}
+h2{margin:14px 0 0;font-size:20px}.lnk{background:none;color:var(--o);padding:4px 0}
+</style></head><body>
+<header><h1><span>APEX DETTES</span><button id="ins" class="g">Installer</button></h1>
+<div class="tot"><small id="tl">Total des dettes en cours</small><span id="tt">0 F</span></div></header>
+<main id="app"></main>
+<button class="fab" id="fab">+ Client</button>
+<dialog id="dlg"><form method="dialog" id="frm"></form></dialog>
+<script>
+const $=s=>document.querySelector(s);let db,C=[],O=[],cur=null,q='';
+const open=()=>new Promise((r,j)=>{const x=indexedDB.open('apex-dettes',1);x.onupgradeneeded=()=>{x.result.createObjectStore('clients',{keyPath:'id'});x.result.createObjectStore('ops',{keyPath:'id'})};x.onsuccess=()=>r(x.result);x.onerror=j});
+const tx=(s,m,f)=>new Promise((r,j)=>{const t=db.transaction(s,m),q=f(t.objectStore(s));t.oncomplete=()=>r(q&&q.result);t.onerror=j});
+const put=(s,v)=>tx(s,'readwrite',o=>o.put(v)),del=(s,k)=>tx(s,'readwrite',o=>o.delete(k));
+const load=async()=>{C=await tx('clients','readonly',o=>o.getAll());O=await tx('ops','readonly',o=>o.getAll());render()};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const F=n=>Math.round(n).toLocaleString('fr-FR')+' F',D=d=>new Date(d).toLocaleDateString('fr-FR');
+const today=()=>new Date().toISOString().slice(0,10);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const bal=id=>O.filter(o=>o.cid===id).reduce((s,o)=>s+(o.type==='dette'?o.montant:-o.montant),0);
+function ask(titre,champs,ok,label='Enregistrer'){
+ $('#frm').innerHTML=`<h3 style="margin:0">${titre}</h3>`+champs.map(c=>`<label>${c.l}</label><input name="${c.k}" type="${c.t||'text'}" value="${esc(c.v||'')}" ${c.r?'required':''} ${c.t==='number'?'inputmode="numeric" min="1" step="any"':''}>`).join('')+`<div class="row"><button type="button" class="g" onclick="dlg.close()">Annuler</button><button>${label}</button></div>`;
+ $('#frm').onsubmit=e=>{const v=Object.fromEntries(new FormData(e.target));ok(v)};$('#dlg').showModal()}
+const dlg=$('#dlg');
+function render(){
+ const tot=C.reduce((s,c)=>s+Math.max(0,bal(c.id)),0);$('#tt').textContent=F(tot);
+ const a=$('#app');
+ if(!cur){ $('#fab').textContent='+ Client';$('#fab').style.display='';
+  const l=C.filter(c=>(c.nom+c.tel).toLowerCase().includes(q.toLowerCase())).map(c=>({c,b:bal(c.id)})).sort((x,y)=>y.b-x.b);
+  a.innerHTML=`<input id="q" placeholder="Rechercher un client" value="${esc(q)}">`+(l.length?l.map(({c,b})=>`<div class="it" data-id="${c.id}"><div><b>${esc(c.nom)}</b><span>${esc(c.tel||'Sans téléphone')}</span></div><div class="s ${b>0?'dt':'ok'}">${b>0?F(b):'Soldé'}</div></div>`).join(''):`<div class="vide">Aucun client. Touchez « + Client » pour commencer.</div>`)+`<div class="bar" style="margin-top:24px"><button class="g" id="ex">Sauvegarder les données</button><button class="g" id="im">Restaurer</button></div>`;
+  $('#q').oninput=e=>{q=e.target.value;render();$('#q').focus();$('#q').setSelectionRange(q.length,q.length)};
+  a.querySelectorAll('.it').forEach(e=>e.onclick=()=>{cur=e.dataset.id;render();scrollTo(0,0)});
+  $('#ex').onclick=exporter;$('#im').onclick=importer;
+ }else{
+  const c=C.find(x=>x.id===cur);if(!c){cur=null;return render()}
+  const b=bal(c.id),ops=O.filter(o=>o.cid===c.id).sort((x,y)=>y.date.localeCompare(x.date)||y.id.localeCompare(x.id));
+  $('#fab').style.display='none';
+  a.innerHTML=`<button class="lnk" id="bk">← Clients</button><h2>${esc(c.nom)}</h2><span style="color:var(--m)">${esc(c.tel||'')}</span>
+  <div class="it"><span>Reste à payer</span><div class="s ${b>0?'dt':'ok'}" style="font-size:22px">${F(Math.max(b,0))}</div></div>
+  <div class="bar"><button id="nd">+ Dette</button><button id="np" style="background:var(--v)">+ Paiement</button></div>
+  <div class="bar"><button class="g" id="rp">Rappel WhatsApp</button><button class="g" id="mc">Modifier</button><button class="d" id="sc">Supprimer</button></div>
+  ${ops.length?ops.map(o=>`<div class="it"><div><b>${o.type==='dette'?'Dette':'Paiement'}</b><span>${D(o.date)}${o.note?' · '+esc(o.note):''}${o.echeance?' · échéance '+D(o.echeance):''}</span></div><div style="text-align:right"><div class="s ${o.type==='dette'?'dt':'ok'}">${o.type==='dette'?'+':'−'}${F(o.montant)}</div><button class="lnk" data-x="${o.id}" style="color:var(--m);font-size:12px">Annuler</button></div></div>`).join(''):'<div class="vide">Aucune opération.</div>'}`;
+  $('#bk').onclick=()=>{cur=null;render()};
+  const op=t=>ask(t==='dette'?'Nouvelle dette':'Nouveau paiement',[{k:'montant',l:'Montant (F CFA)',t:'number',r:1},{k:'date',l:'Date',t:'date',v:today()},...(t==='dette'?[{k:'echeance',l:'Date limite de paiement (facultatif)',t:'date'}]:[]),{k:'note',l:'Détail (facultatif)'}],async v=>{await put('ops',{id:uid(),cid:c.id,type:t,montant:+v.montant,date:v.date||today(),echeance:v.echeance||'',note:v.note});dlg.close();load()});
+  $('#nd').onclick=()=>op('dette');$('#np').onclick=()=>op('paiement');
+  $('#mc').onclick=()=>ask('Modifier le client',[{k:'nom',l:'Nom',v:c.nom,r:1},{k:'tel',l:'Téléphone',t:'tel',v:c.tel}],async v=>{await put('clients',{...c,...v});dlg.close();load()});
+  $('#sc').onclick=async()=>{if(confirm('Supprimer ce client et tout son historique ?')){for(const o of O.filter(o=>o.cid===c.id))await del('ops',o.id);await del('clients',c.id);cur=null;load()}};
+  $('#rp').onclick=()=>{let n=(c.tel||'').replace(/\D/g,'');if(!n)return alert('Ajoutez un numéro de téléphone (bouton Modifier).');if(n.length===8)n='226'+n;
+   open_('https://wa.me/'+n+'?text='+encodeURIComponent(`Bonjour ${c.nom}, votre solde à régler à la boutique est de ${F(b)}. Merci de passer nous voir.`))};
+  a.querySelectorAll('[data-x]').forEach(e=>e.onclick=async()=>{if(confirm('Annuler cette opération ?')){await del('ops',e.dataset.x);load()}});
+ }}
+const open_=u=>window.open(u,'_blank');
+$('#fab').onclick=()=>ask('Nouveau client',[{k:'nom',l:'Nom',r:1},{k:'tel',l:'Téléphone (facultatif)',t:'tel'}],async v=>{await put('clients',{id:uid(),nom:v.nom,tel:v.tel});dlg.close();load()},'Ajouter');
+function exporter(){const b=new Blob([JSON.stringify({clients:C,ops:O})],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='apex-dettes-'+today()+'.json';a.click()}
+function importer(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=async()=>{try{const d=JSON.parse(await i.files[0].text());if(!confirm('Remplacer les données actuelles ?'))return;for(const c of C)await del('clients',c.id);for(const o of O)await del('ops',o.id);for(const c of d.clients)await put('clients',c);for(const o of d.ops)await put('ops',o);load()}catch{alert('Fichier invalide.')}};i.click()}
+let ev;addEventListener('beforeinstallprompt',e=>{e.preventDefault();ev=e;$('#ins').style.display='block'});
+$('#ins').onclick=async()=>{ev.prompt();await ev.userChoice;$('#ins').style.display='none'};
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+open().then(d=>{db=d;load()});
+</script></body></html>
